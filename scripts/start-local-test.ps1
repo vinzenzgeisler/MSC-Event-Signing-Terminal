@@ -75,6 +75,31 @@ foreach ($path in @($FrontendPath, $SigningPath)) {
   }
 }
 
+function Quote-PwshValue {
+  param([string]$Value)
+  return "'" + ($Value -replace "'", "''") + "'"
+}
+
+$frontendCommand = "npm run dev -- --host 0.0.0.0 --port $FrontendPort"
+$signingCommand = "npm run dev -- --host 0.0.0.0 --port $SigningPort"
+
+$frontendEnvParts = @()
+$signingEnvParts = @()
+if ($ApiBaseUrl) {
+  $frontendEnvParts += "`$env:VITE_API_BASE_URL='/api'"
+  $frontendEnvParts += "`$env:VITE_API_PROXY_TARGET=$(Quote-PwshValue $ApiBaseUrl)"
+  $signingEnvParts += "`$env:VITE_API_BASE_URL='/api'"
+  $signingEnvParts += "`$env:VITE_API_PROXY_TARGET=$(Quote-PwshValue $ApiBaseUrl)"
+}
+if ($CognitoDomain) {
+  $frontendEnvParts += "`$env:VITE_COGNITO_DOMAIN=$(Quote-PwshValue $CognitoDomain)"
+}
+if ($CognitoClientId) {
+  $frontendEnvParts += "`$env:VITE_COGNITO_CLIENT_ID=$(Quote-PwshValue $CognitoClientId)"
+}
+$frontendCommand = (($frontendEnvParts + $frontendCommand) -join "; ")
+$signingCommand = (($signingEnvParts + $signingCommand) -join "; ")
+
 $pwshCommand = Get-Command pwsh -ErrorAction SilentlyContinue
 if ($pwshCommand) {
   $pwsh = $pwshCommand.Source
@@ -85,13 +110,13 @@ if ($pwshCommand) {
 Start-Process -FilePath $pwsh -WorkingDirectory $FrontendPath -ArgumentList @(
   "-NoExit",
   "-Command",
-  "npm run dev -- --host 0.0.0.0 --port $FrontendPort"
+  $frontendCommand
 ) -WindowStyle Hidden
 
 Start-Process -FilePath $pwsh -WorkingDirectory $SigningPath -ArgumentList @(
   "-NoExit",
   "-Command",
-  "npm run dev -- --host 0.0.0.0 --port $SigningPort"
+  $signingCommand
 ) -WindowStyle Hidden
 
 $ip = $null

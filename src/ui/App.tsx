@@ -30,6 +30,10 @@ function checkedLabel(value: string | null) {
   return value ? new Date(value).toLocaleTimeString("de-DE") : "Offen";
 }
 
+function isUnauthorizedDeviceError(error: unknown) {
+  return error instanceof Error && /unauthorized|SIGNING_DEVICE_UNAUTHORIZED/i.test(error.message);
+}
+
 export function App() {
   const [deviceToken, setDeviceToken] = useState(() => signingApiAdapter.getStoredDeviceToken());
   const [pairingCode, setPairingCode] = useState("");
@@ -83,6 +87,17 @@ export function App() {
         setStep("signing");
       }
     } catch (error) {
+      if (isUnauthorizedDeviceError(error)) {
+        signingApiAdapter.forgetDeviceToken();
+        setDeviceToken(null);
+        setSession(null);
+        setDisplayedAt(null);
+        setWaiverAcceptedAt(null);
+        setSignatureDataUrl(null);
+        setStep("pair");
+        setMessage("Dieses Terminal ist nicht mehr gekoppelt. Bitte im Nennungstool neu koppeln.");
+        return;
+      }
       setMessage(error instanceof Error ? error.message : "Session konnte nicht geladen werden.");
     }
   }
@@ -134,6 +149,17 @@ export function App() {
         }
         setSession(current);
       } catch (error) {
+        if (isUnauthorizedDeviceError(error)) {
+          signingApiAdapter.forgetDeviceToken();
+          setDeviceToken(null);
+          setSession(null);
+          setDisplayedAt(null);
+          setWaiverAcceptedAt(null);
+          setSignatureDataUrl(null);
+          setStep("pair");
+          setMessage("Dieses Terminal ist nicht mehr gekoppelt. Bitte im Nennungstool neu koppeln.");
+          return;
+        }
         setMessage(error instanceof Error ? error.message : "Session konnte nicht aktualisiert werden.");
       }
     };
@@ -168,6 +194,17 @@ export function App() {
         setStep("waiting");
       }, 2600);
     } catch (error) {
+      if (isUnauthorizedDeviceError(error)) {
+        signingApiAdapter.forgetDeviceToken();
+        setDeviceToken(null);
+        setSession(null);
+        setDisplayedAt(null);
+        setWaiverAcceptedAt(null);
+        setSignatureDataUrl(null);
+        setStep("pair");
+        setMessage("Dieses Terminal ist nicht mehr gekoppelt. Bitte im Nennungstool neu koppeln.");
+        return;
+      }
       setMessage(error instanceof Error ? error.message : "Abschluss fehlgeschlagen.");
     } finally {
       setBusy(false);

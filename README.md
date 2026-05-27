@@ -128,12 +128,14 @@ Das Backend schreibt die Objekte in den privaten Dokumenten-Bucket:
 
 ```bash
 npm install
-npm run dev
+npm run dev:local
 npm run build
 npm test
 ```
 
 Der Dev-Server verwendet Port `5178`.
+
+`npm run dev:local` synchronisiert vorher `.env.local` mit dem aktuellen `ApiUrl`-Output des gemeinsamen Dev-Backend-Stacks. Dadurch bleibt das Terminal auch dann erreichbar, wenn AWS eine neue `execute-api`-URL ausgibt.
 
 Für die echte Backend-Integration muss die App die API-Basis kennen:
 

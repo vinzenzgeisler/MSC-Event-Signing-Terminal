@@ -53,6 +53,10 @@ export type SigningCase = {
   id: string;
   event: EventSnapshot;
   driver: PersonSnapshot;
+  signer?: PersonSnapshot & {
+    role: "driver" | "codriver";
+    label: string;
+  };
   isMinor: boolean;
   requiresMedicalCertificate: boolean;
   contract: WaiverContractSnapshot;
@@ -70,7 +74,7 @@ export type PrecheckResult = {
 };
 
 export type SignerIdentity = {
-  type: "driver" | "guardian";
+  type: "driver" | "codriver" | "guardian";
   guardianName: string | null;
   guardianRelationship: string | null;
 };

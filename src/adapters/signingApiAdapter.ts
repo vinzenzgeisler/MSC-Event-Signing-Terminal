@@ -20,6 +20,7 @@ function baseUrl() {
 async function requestJson<T>(path: string, options: { method?: string; body?: unknown; deviceToken?: string | null } = {}): Promise<T> {
   const response = await fetch(`${baseUrl()}${path}`, {
     method: options.method ?? "GET",
+    cache: "no-store",
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.deviceToken ? { "X-Signing-Device-Token": options.deviceToken } : {})
@@ -28,7 +29,9 @@ async function requestJson<T>(path: string, options: { method?: string; body?: u
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(typeof payload?.message === "string" ? payload.message : `Request failed (${response.status})`);
+    const message = typeof payload?.message === "string" ? payload.message : `Request failed (${response.status})`;
+    const detail = typeof payload?.details?.error === "string" ? payload.details.error : "";
+    throw new Error(detail ? `${message}: ${detail}` : message);
   }
   return payload as T;
 }
@@ -39,6 +42,7 @@ export type DeviceSigningSession = {
   sessionPayload: unknown;
   precheckPayload: unknown;
   signerPayload: unknown;
+  expiresAt: string;
 };
 
 export const signingApiAdapter = {
@@ -66,7 +70,12 @@ export const signingApiAdapter = {
     return response.session;
   },
 
-  async completeSession(sessionId: string, deviceToken: string, input: { displayedAt: string; signedAt: string; signatureDataUrl: string }) {
+  async completeSession(sessionId: string, deviceToken: string, input: {
+    displayedAt: string;
+    waiverAcceptedAt: string;
+    signedAt: string;
+    signatureDataUrl: string;
+  }) {
     return requestJson<{ ok: true }>(`/signing/sessions/${sessionId}/complete`, {
       method: "POST",
       deviceToken,

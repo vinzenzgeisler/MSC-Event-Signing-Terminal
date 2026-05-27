@@ -1,20 +1,22 @@
-import { CheckCircle2, FileCheck2, Link2, Loader2, PenLine, RotateCcw, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  ClipboardCheck,
+  FileCheck2,
+  Link2,
+  Loader2,
+  PenLine,
+  ShieldCheck
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { signingApiAdapter, type DeviceSigningSession } from "../adapters/signingApiAdapter";
 import type { SigningCase } from "../domain/types";
 import { SignaturePad } from "./SignaturePad";
 
-type Step = "pair" | "waiting" | "detail" | "waiver" | "signature" | "success";
+type Step = "pair" | "waiting" | "signing" | "success";
+const DEVICE_NAME_KEY = "msc-signing-device-name";
 
 function fullName(person: { firstName: string; lastName: string }) {
-  return `${person.firstName} ${person.lastName}`;
-}
-
-function languageLabel(locale: string) {
-  if (locale === "en-GB") return "Englisch";
-  if (locale === "cs-CZ") return "Tschechisch";
-  if (locale === "pl-PL") return "Polnisch";
-  return "Deutsch";
+  return `${person.firstName} ${person.lastName}`.trim();
 }
 
 function asSigningCase(session: DeviceSigningSession | null): SigningCase | null {
@@ -24,19 +26,27 @@ function asSigningCase(session: DeviceSigningSession | null): SigningCase | null
   return session.sessionPayload as SigningCase;
 }
 
+function checkedLabel(value: string | null) {
+  return value ? new Date(value).toLocaleTimeString("de-DE") : "Offen";
+}
+
 export function App() {
   const [deviceToken, setDeviceToken] = useState(() => signingApiAdapter.getStoredDeviceToken());
   const [pairingCode, setPairingCode] = useState("");
-  const [deviceName, setDeviceName] = useState("Signing Terminal");
+  const [deviceName, setDeviceName] = useState(() => localStorage.getItem(DEVICE_NAME_KEY) ?? "Signaturterminal");
   const [session, setSession] = useState<DeviceSigningSession | null>(null);
   const [step, setStep] = useState<Step>(() => (signingApiAdapter.getStoredDeviceToken() ? "waiting" : "pair"));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [displayedAt, setDisplayedAt] = useState<string | null>(null);
+  const [waiverAcceptedAt, setWaiverAcceptedAt] = useState<string | null>(null);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(Date.now());
 
   const signingCase = useMemo(() => asSigningCase(session), [session]);
-  const signer = (session?.signerPayload ?? {}) as { type?: "driver" | "guardian"; guardianName?: string | null; guardianRelationship?: string | null };
+  const signingPerson = signingCase?.signer ?? signingCase?.driver ?? null;
+  const sessionExpiresAtMs = session?.expiresAt ? new Date(session.expiresAt).getTime() : Number.NaN;
+  const remainingSeconds = Number.isFinite(sessionExpiresAtMs) ? Math.max(0, Math.ceil((sessionExpiresAtMs - nowTick) / 1000)) : null;
 
   async function pairDevice() {
     const normalized = pairingCode.replace(/\D/g, "").slice(0, 6);
@@ -46,7 +56,8 @@ export function App() {
     }
     setBusy(true);
     try {
-      const token = await signingApiAdapter.claimDevice(normalized, deviceName.trim() || "Signing Terminal");
+      const token = await signingApiAdapter.claimDevice(normalized, deviceName.trim() || "Signaturterminal");
+      localStorage.setItem(DEVICE_NAME_KEY, deviceName.trim() || "Signaturterminal");
       setDeviceToken(token);
       setStep("waiting");
       setMessage("");
@@ -58,7 +69,7 @@ export function App() {
   }
 
   async function pollSession() {
-    if (!deviceToken || step === "signature" || step === "waiver" || step === "detail" || step === "success") {
+    if (!deviceToken || step !== "waiting") {
       return;
     }
     try {
@@ -66,8 +77,10 @@ export function App() {
       if (current) {
         setSession(current);
         setDisplayedAt(new Date().toISOString());
+        setWaiverAcceptedAt(null);
         setSignatureDataUrl(null);
-        setStep("detail");
+        setMessage("");
+        setStep("signing");
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Session konnte nicht geladen werden.");
@@ -83,19 +96,77 @@ export function App() {
     return () => window.clearInterval(interval);
   }, [deviceToken, step]);
 
+  useEffect(() => {
+    if (step !== "signing") {
+      return;
+    }
+    const interval = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== "signing" || remainingSeconds === null || remainingSeconds > 0) {
+      return;
+    }
+    setSession(null);
+    setDisplayedAt(null);
+    setWaiverAcceptedAt(null);
+    setSignatureDataUrl(null);
+    setStep("waiting");
+    setMessage("Die Signatur-Session ist abgelaufen. Bitte im Nennungstool neu starten.");
+  }, [remainingSeconds, step]);
+
+  useEffect(() => {
+    if (!deviceToken || !session || step !== "signing") {
+      return;
+    }
+    const pollActiveSession = async () => {
+      try {
+        const current = await signingApiAdapter.getCurrentSession(deviceToken);
+        if (!current || current.id !== session.id) {
+          setSession(null);
+          setDisplayedAt(null);
+          setWaiverAcceptedAt(null);
+          setSignatureDataUrl(null);
+          setStep("waiting");
+          setMessage("Der Vorgang wurde im Nennungstool geschlossen.");
+          return;
+        }
+        setSession(current);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Session konnte nicht aktualisiert werden.");
+      }
+    };
+    const interval = window.setInterval(() => void pollActiveSession(), 2500);
+    return () => window.clearInterval(interval);
+  }, [deviceToken, session, step]);
+
   async function complete() {
-    if (!session || !deviceToken || !displayedAt || !signatureDataUrl) {
+    if (!session || !deviceToken || !displayedAt) {
+      return;
+    }
+    if (!waiverAcceptedAt) {
+      setMessage("Bitte zuerst bestätigen: gelesen und verstanden.");
+      return;
+    }
+    if (!signatureDataUrl) {
+      setMessage("Bitte zuerst im Unterschriftenfeld unterschreiben.");
       return;
     }
     setBusy(true);
     try {
       await signingApiAdapter.completeSession(session.id, deviceToken, {
         displayedAt,
+        waiverAcceptedAt,
         signedAt: new Date().toISOString(),
         signatureDataUrl
       });
+      setSession(null);
       setStep("success");
       setMessage("");
+      window.setTimeout(() => {
+        setStep("waiting");
+      }, 2600);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Abschluss fehlgeschlagen.");
     } finally {
@@ -103,23 +174,33 @@ export function App() {
     }
   }
 
-  function resetPairing() {
-    signingApiAdapter.forgetDeviceToken();
-    setDeviceToken(null);
-    setSession(null);
-    setStep("pair");
+  function vehicleSummary() {
+    if (!signingCase) return "";
+    return signingCase.entries
+      .flatMap((entry) =>
+        entry.vehicles
+          .filter((vehicle) => vehicle.role === "primary")
+          .map((vehicle) => `${entry.startNumber ? `#${entry.startNumber} · ` : ""}${vehicle.make} ${vehicle.model}`)
+      )
+      .join(" · ");
+  }
+
+  function codriverSummary() {
+    if (!signingCase) return "";
+    const names = signingCase.entries.map((entry) => (entry.codriver ? fullName(entry.codriver) : null)).filter(Boolean);
+    return Array.from(new Set(names)).join(" · ");
   }
 
   return (
     <main>
       <header className="app-header">
-        <div>
-          <div className="eyebrow">MSC Signing Terminal</div>
-          <h1>Haftverzicht</h1>
+        <div className="brand-lockup">
+          <img src="/msc-logo.png" alt="MSC Oberlausitzer Dreiländereck" className="brand-logo" />
+          <div>
+            <div className="eyebrow">MSC Event</div>
+            <h1>Haftverzicht</h1>
+          </div>
         </div>
-        <button className="secondary icon-button" type="button" onClick={resetPairing} title="Gerätekopplung zurücksetzen">
-          <RotateCcw size={20} />
-        </button>
       </header>
 
       {message ? <div className="screen warning-box">{message}</div> : null}
@@ -127,8 +208,8 @@ export function App() {
       {step === "pair" ? (
         <section className="screen pair-screen">
           <Link2 size={52} />
-          <h2>Signaturgerät koppeln</h2>
-          <p>Der Operator erzeugt den Pairing-Code im Nennungstool.</p>
+          <h2>Terminal koppeln</h2>
+          <p>Der Code wird im Nennungstool angezeigt und ist nur für dieses Gerät bestimmt.</p>
           <input className="pair-code-input" value={pairingCode} onChange={(event) => setPairingCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" inputMode="numeric" />
           <input value={deviceName} onChange={(event) => setDeviceName(event.target.value)} placeholder="Gerätename" />
           <button className="primary" type="button" disabled={busy} onClick={() => void pairDevice()}>
@@ -140,99 +221,56 @@ export function App() {
 
       {step === "waiting" ? (
         <section className="screen wait-screen">
-          <Loader2 size={54} className="spin" />
-          <h2>Bereit für die nächste Unterschrift</h2>
-          <p>Der Operator startet die Haftverzicht-Session im Nennungstool.</p>
+          <img src="/msc-logo.png" alt="" className="standby-logo" />
+          <CheckCircle2 size={58} />
+          <h2>Terminal bereit</h2>
+          <p>{deviceName || "Signaturgerät"} · wartet auf Start durch das Anmeldungsteam</p>
         </section>
       ) : null}
 
-      {step === "detail" && signingCase ? (
-        <section className="screen">
-          <div className="screen-title">
+      {step === "signing" && signingCase ? (
+        <section className="screen onepage-signing">
+          <div className="screen-title onepage-title">
             <div>
-              <h2>{fullName(signingCase.driver)}</h2>
-              <p>{signingCase.event.name} · {signingCase.event.startsAt} bis {signingCase.event.endsAt}</p>
+              <div className="eyebrow">Bitte Angaben prüfen und unterschreiben</div>
+              <h2>{signingPerson ? fullName(signingPerson) : fullName(signingCase.driver)}</h2>
+              {signingCase.signer?.role === "codriver" ? <p>Beifahrer von {fullName(signingCase.driver)}</p> : null}
+              <p>{signingCase.event.name} · {vehicleSummary()}</p>
+              {signingCase.signer?.role !== "codriver" && codriverSummary() ? <p>Beifahrer: {codriverSummary()}</p> : null}
             </div>
-            <button className="primary" type="button" onClick={() => setStep("waiver")}>
-              Haftverzicht lesen
+            {remainingSeconds !== null ? <div className="session-countdown">Noch {Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, "0")} Min.</div> : null}
+          </div>
+
+          <article className="waiver-text onepage-waiver">
+            <h3>{signingCase.contract.title}</h3>
+            {signingCase.contract.fullText}
+          </article>
+
+          <div className="read-confirmation-row">
+            <button className={`read-confirmation ${waiverAcceptedAt ? "selected" : ""}`} type="button" onClick={() => setWaiverAcceptedAt((current) => current ?? new Date().toISOString())}>
+              <span className="toggle-icon">{waiverAcceptedAt ? <CheckCircle2 size={20} /> : <ClipboardCheck size={20} />}</span>
+              <span>
+                <strong>Ich habe die Haftverzichtserklärung gelesen und verstanden.</strong>
+                <small>{checkedLabel(waiverAcceptedAt)}</small>
+              </span>
             </button>
           </div>
-          <div className="summary-band">
-            <div><strong>Unterzeichner</strong><span>{signer.type === "guardian" ? `${signer.guardianName ?? "-"} (${signer.guardianRelationship ?? "-"})` : "Fahrer selbst"}</span></div>
-            <div><strong>Sprache</strong><span>{languageLabel(signingCase.contract.locale)}</span></div>
-            <div><strong>Version</strong><span>{signingCase.contract.version}</span></div>
-            <div><strong>Text-Hash</strong><span className="hash">{signingCase.contract.textHash}</span></div>
-          </div>
-          <div className="entry-list">
-            {signingCase.entries.map((entry) => (
-              <article className="entry-card" key={entry.id}>
-                <div>
-                  <div className="eyebrow">{entry.className}</div>
-                  <h3>{entry.startNumber ? `Startnummer ${entry.startNumber}` : "Ohne Startnummer"}</h3>
-                  <p>Beifahrer: {entry.codriver ? fullName(entry.codriver) : "nicht angegeben"}</p>
-                </div>
-                <div className="vehicle-list">
-                  {entry.vehicles.map((vehicle) => (
-                    <div className="vehicle-pill" key={vehicle.id}>
-                      <strong>{vehicle.role === "backup" ? "Ersatz" : "Fahrzeug"}</strong>
-                      <span>{vehicle.make} {vehicle.model}</span>
-                      <span>{vehicle.year ?? "-"}</span>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
-      {step === "waiver" && signingCase ? (
-        <section className="screen">
-          <div className="screen-title">
-            <div>
-              <h2>{signingCase.contract.title}</h2>
-              <p>{languageLabel(signingCase.contract.locale)} · Version {signingCase.contract.version}</p>
-            </div>
-            <button className="primary" type="button" onClick={() => setStep("signature")}>
-              Zur Unterschrift
-            </button>
-          </div>
-          <div className="hash-panel">
-            <strong>Text-Hash</strong>
-            <span>{signingCase.contract.textHash}</span>
-          </div>
-          <article className="waiver-text">{signingCase.contract.fullText}</article>
-        </section>
-      ) : null}
-
-      {step === "signature" && signingCase ? (
-        <section className="screen">
-          <div className="screen-title">
-            <div>
-              <h2>Unterschrift</h2>
-              <p>{signer.type === "guardian" ? "Erziehungsberechtigter unterschreibt." : "Fahrer unterschreibt selbst."}</p>
-            </div>
-            <button className="primary" type="button" disabled={!signatureDataUrl || busy} onClick={() => void complete()}>
+          <div className="onepage-signature-panel">
+            <SignaturePad onChange={setSignatureDataUrl} />
+            <button className="primary" type="button" disabled={busy} onClick={() => void complete()}>
               {busy ? <Loader2 size={20} className="spin" /> : <PenLine size={20} />}
-              Abschließen
+              Unterschrift bestätigen
             </button>
           </div>
-          <SignaturePad onChange={setSignatureDataUrl} />
         </section>
       ) : null}
 
       {step === "success" ? (
         <section className="screen success-panel">
+          <img src="/msc-logo.png" alt="" className="standby-logo" />
           <FileCheck2 size={54} />
-          <h2>Unterschrift gespeichert</h2>
-          <p>Der Operator sieht den Abschluss im Nennungstool.</p>
-          <CheckCircle2 size={42} />
-          <button className="primary" type="button" onClick={() => {
-            setSession(null);
-            setStep("waiting");
-          }}>
-            Bereit für nächste Session
-          </button>
+          <h2>Erfolgreich gespeichert</h2>
         </section>
       ) : null}
     </main>

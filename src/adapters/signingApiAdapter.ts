@@ -43,6 +43,30 @@ export type DeviceSigningSession = {
   precheckPayload: unknown;
   signerPayload: unknown;
   expiresAt: string;
+  workflowType?: "waiver_signature" | "regular_codriver_registration" | "charity_codriver_registration";
+  workflowStage?: "collecting_data" | "awaiting_operator_approval" | "ready_to_sign" | "completed" | "cancelled" | "failed";
+  draftPayload?: unknown;
+};
+
+export type ParticipantDraft = {
+  locale: "de-DE" | "en-GB" | "cs-CZ" | "pl-PL";
+  firstName: string;
+  lastName: string;
+  birthdate: string;
+  country: string;
+  street: string;
+  zip: string;
+  city: string;
+  email: string;
+  phone: string;
+  emergencyContactFirstName: string;
+  emergencyContactLastName: string;
+  emergencyContactPhone: string;
+  motorsportHistory?: string | null;
+  guardianFullName?: string | null;
+  guardianEmail?: string | null;
+  guardianPhone?: string | null;
+  guardianRelationship?: string | null;
 };
 
 export const signingApiAdapter = {
@@ -55,7 +79,7 @@ export const signingApiAdapter = {
   },
 
   async claimDevice(pairingCode: string, deviceName: string) {
-    const response = await requestJson<{ ok: true; deviceToken: string }>("/signing/device/claim", {
+    const response = await requestJson<{ ok: true; deviceToken: string }>("/terminal/device/claim", {
       method: "POST",
       body: { pairingCode, deviceName }
     });
@@ -64,7 +88,7 @@ export const signingApiAdapter = {
   },
 
   async getCurrentSession(deviceToken: string) {
-    const response = await requestJson<{ ok: true; session: DeviceSigningSession | null }>("/signing/device/current-session", {
+    const response = await requestJson<{ ok: true; session: DeviceSigningSession | null }>("/terminal/device/current-session", {
       deviceToken
     });
     return response.session;
@@ -76,7 +100,30 @@ export const signingApiAdapter = {
     signedAt: string;
     signatureDataUrl: string;
   }) {
-    return requestJson<{ ok: true }>(`/signing/sessions/${sessionId}/complete`, {
+    return requestJson<{ ok: true }>(`/terminal/sessions/${sessionId}/complete`, {
+      method: "POST",
+      deviceToken,
+      body: input
+    });
+  },
+
+  async submitParticipantDraft(sessionId: string, deviceToken: string, draft: ParticipantDraft) {
+    const response = await requestJson<{ ok: true; session: DeviceSigningSession }>(`/terminal/sessions/${sessionId}/draft`, {
+      method: "PUT",
+      deviceToken,
+      body: draft
+    });
+    return response.session;
+  },
+
+  async completeParticipantSession(sessionId: string, deviceToken: string, input: {
+    displayedAt: string;
+    privacyAcceptedAt: string;
+    waiverAcceptedAt: string;
+    signedAt: string;
+    signatureDataUrl: string;
+  }) {
+    return requestJson<{ ok: true }>(`/terminal/sessions/${sessionId}/complete`, {
       method: "POST",
       deviceToken,
       body: input

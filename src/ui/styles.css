@@ -60,7 +60,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -277,6 +279,66 @@ p {
   margin: 0 0 12px;
 }
 
+.participant-form-screen {
+  min-height: calc(100vh - 112px);
+}
+
+.participant-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 22px 24px 28px 32px;
+}
+
+.participant-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--msc-blue-dark);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.participant-form input,
+.participant-form select,
+.participant-form textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--msc-border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  color: var(--msc-ink);
+}
+
+.participant-form textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.participant-form .full-field {
+  grid-column: 1 / -1;
+}
+
+.guardian-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  border: 1px solid var(--msc-border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.guardian-fields legend {
+  padding: 0 6px;
+  color: var(--msc-blue-dark);
+  font-weight: 800;
+}
+
+.read-confirmation-row {
+  display: grid;
+  gap: 8px;
+}
+
 .onepage-signature-panel {
   display: grid;
   grid-template-columns: minmax(430px, 1fr) minmax(190px, auto);
@@ -449,6 +511,15 @@ p {
   .onepage-signing {
     display: block;
     min-height: auto;
+  }
+
+  .participant-form,
+  .guardian-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .participant-form {
+    padding: 16px 16px 22px 24px;
   }
 
   .onepage-title {

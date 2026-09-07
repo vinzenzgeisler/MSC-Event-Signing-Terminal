@@ -4,9 +4,13 @@ type SignaturePadProps = {
   onChange: (dataUrl: string | null) => void;
 };
 
+export function isSignaturePointerAllowed(pointerType: string) {
+  return pointerType === "pen";
+}
+
 export function SignaturePad({ onChange }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const drawingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
   const [empty, setEmpty] = useState(true);
 
   useEffect(() => {
@@ -51,22 +55,30 @@ export function SignaturePad({ onChange }: SignaturePadProps) {
   }
 
   function start(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (
+      activePointerIdRef.current !== null ||
+      !isSignaturePointerAllowed(event.pointerType)
+    ) {
+      return;
+    }
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) {
       return;
     }
+    event.preventDefault();
     canvas.setPointerCapture(event.pointerId);
-    drawingRef.current = true;
+    activePointerIdRef.current = event.pointerId;
     const point = getPoint(event);
     ctx.beginPath();
     ctx.moveTo(point.x, point.y);
   }
 
   function move(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawingRef.current) {
+    if (activePointerIdRef.current !== event.pointerId) {
       return;
     }
+    event.preventDefault();
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) {
       return;
@@ -80,11 +92,15 @@ export function SignaturePad({ onChange }: SignaturePadProps) {
   }
 
   function end(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawingRef.current) {
+    if (activePointerIdRef.current !== event.pointerId) {
       return;
     }
-    drawingRef.current = false;
-    canvasRef.current?.releasePointerCapture(event.pointerId);
+    event.preventDefault();
+    activePointerIdRef.current = null;
+    const canvas = canvasRef.current;
+    if (canvas?.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
     emitChange();
   }
 
@@ -101,6 +117,7 @@ export function SignaturePad({ onChange }: SignaturePadProps) {
 
   return (
     <div className="signature-pad">
+      <div className="signature-input-mode">Stiftmodus · Handballenschutz aktiv</div>
       <canvas
         ref={canvasRef}
         aria-label="Unterschriftenfeld"

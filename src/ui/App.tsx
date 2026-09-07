@@ -8,6 +8,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useRegisterSW } from "virtual:pwa-register/react";
 import { signingApiAdapter, type DeviceSigningSession, type ParticipantDraft } from "../adapters/signingApiAdapter";
 import type { SigningCase } from "../domain/types";
 import { SignaturePad } from "./SignaturePad";
@@ -76,6 +77,10 @@ export function App() {
   const [privacyAcceptedAt, setPrivacyAcceptedAt] = useState<string | null>(null);
   const [participantDraft, setParticipantDraft] = useState<ParticipantDraft>(emptyParticipantDraft);
   const [nowTick, setNowTick] = useState(Date.now());
+  const {
+    needRefresh: [pwaUpdateAvailable],
+    updateServiceWorker
+  } = useRegisterSW();
 
   const signingCase = useMemo(() => asSigningCase(session), [session]);
   const signingPerson = signingCase?.signer ?? signingCase?.driver ?? null;
@@ -85,6 +90,11 @@ export function App() {
   const formT = formTexts[participantDraft.locale];
   const sessionExpiresAtMs = session?.expiresAt ? new Date(session.expiresAt).getTime() : Number.NaN;
   const remainingSeconds = Number.isFinite(sessionExpiresAtMs) ? Math.max(0, Math.ceil((sessionExpiresAtMs - nowTick) / 1000)) : null;
+  useEffect(() => {
+    if (pwaUpdateAvailable && step !== "signing") {
+      void updateServiceWorker(true);
+    }
+  }, [pwaUpdateAvailable, step, updateServiceWorker]);
 
   async function pairDevice() {
     const normalized = pairingCode.replace(/\D/g, "").slice(0, 6);

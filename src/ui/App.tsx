@@ -10,7 +10,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { signingApiAdapter, type DeviceSigningSession, type ParticipantDraft } from "../adapters/signingApiAdapter";
-import type { SigningCase } from "../domain/types";
+import type { PersonSnapshot, SigningCase } from "../domain/types";
 import { SignaturePad } from "./SignaturePad";
 
 type Step = "pair" | "waiting" | "signing" | "success";
@@ -44,8 +44,19 @@ const formTexts = {
   "pl-PL": { title: "Dane pilota", intro: "Proszę wypełnić wszystkie wymagane pola.", submit: "Wyślij dane do sprawdzenia", waiting: "Dane wysłane", waitingInfo: "Zespół rejestracyjny sprawdza dane. Proszę pozostać przy tablecie.", firstName: "Imię", lastName: "Nazwisko", birthdate: "Data urodzenia", country: "Kraj", street: "Ulica i numer domu", zip: "Kod pocztowy", city: "Miejscowość", email: "E-mail", phone: "Telefon", emergencyFirst: "Kontakt alarmowy – imię", emergencyLast: "Kontakt alarmowy – nazwisko", emergencyPhone: "Telefon alarmowy", history: "Doświadczenie motorsportowe (opcjonalne)", guardian: "Opiekun prawny (dla niepełnoletnich)", guardianName: "Imię i nazwisko", guardianRelation: "Relacja", privacy: "Przeczytałem(-am) i akceptuję informacje o ochronie danych.", waiver: "Przeczytałem(-am) i rozumiem oświadczenie o zrzeczeniu się roszczeń." }
 } as const;
 
-function fullName(person: { firstName: string; lastName: string }) {
-  return `${person.firstName} ${person.lastName}`.trim();
+function personDisplayName(person: Pick<PersonSnapshot, "displayName" | "firstName" | "lastName">) {
+  return person.displayName?.trim() || `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim() || "Teilnehmer";
+}
+
+type ParticipantSessionProfile = Partial<ParticipantDraft> & {
+  displayName?: string;
+  identityProtected?: boolean;
+  firstName?: string | null;
+  lastName?: string | null;
+};
+
+function participantDisplayName(person: ParticipantSessionProfile) {
+  return person.displayName?.trim() || `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim() || "Beifahrer";
 }
 
 function asSigningCase(session: DeviceSigningSession | null): SigningCase | null {
@@ -86,7 +97,7 @@ export function App() {
   const signingPerson = signingCase?.signer ?? signingCase?.driver ?? null;
   const isParticipantWorkflow = session?.workflowType === "regular_codriver_registration" || session?.workflowType === "charity_codriver_registration";
   const participantPayload = session?.sessionPayload && typeof session.sessionPayload === "object" ? session.sessionPayload as Record<string, unknown> : null;
-  const participantProfile = (participantPayload?.participant ?? session?.draftPayload ?? participantDraft) as ParticipantDraft;
+  const participantProfile = (participantPayload?.participant ?? session?.draftPayload ?? participantDraft) as ParticipantSessionProfile;
   const formT = formTexts[participantDraft.locale];
   const sessionExpiresAtMs = session?.expiresAt ? new Date(session.expiresAt).getTime() : Number.NaN;
   const remainingSeconds = Number.isFinite(sessionExpiresAtMs) ? Math.max(0, Math.ceil((sessionExpiresAtMs - nowTick) / 1000)) : null;
@@ -299,7 +310,7 @@ export function App() {
 
   function codriverSummary() {
     if (!signingCase) return "";
-    const names = signingCase.entries.map((entry) => (entry.codriver ? fullName(entry.codriver) : null)).filter(Boolean);
+    const names = signingCase.entries.map((entry) => (entry.codriver ? personDisplayName(entry.codriver) : null)).filter(Boolean);
     return Array.from(new Set(names)).join(" · ");
   }
 
@@ -381,8 +392,8 @@ export function App() {
           <div className="screen-title onepage-title">
             <div>
               <div className="eyebrow">Bitte Angaben prüfen und unterschreiben</div>
-              <h2>{isParticipantWorkflow ? `${participantProfile.firstName} ${participantProfile.lastName}` : signingPerson ? fullName(signingPerson) : fullName(signingCase.driver)}</h2>
-              {(isParticipantWorkflow || signingCase.signer?.role === "codriver") ? <p>Beifahrer von {fullName(signingCase.driver)}</p> : null}
+              <h2>{isParticipantWorkflow ? participantDisplayName(participantProfile) : signingPerson ? personDisplayName(signingPerson) : personDisplayName(signingCase.driver)}</h2>
+              {(isParticipantWorkflow || signingCase.signer?.role === "codriver") ? <p>Beifahrer von {personDisplayName(signingCase.driver)}</p> : null}
               <p>{signingCase.event.name} · {vehicleSummary()}</p>
               {signingCase.signer?.role !== "codriver" && codriverSummary() ? <p>Beifahrer: {codriverSummary()}</p> : null}
             </div>

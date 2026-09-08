@@ -11,8 +11,10 @@ export type EventSnapshot = {
 
 export type PersonSnapshot = {
   id: string;
-  firstName: string;
-  lastName: string;
+  displayName?: string;
+  identityProtected?: boolean;
+  firstName: string | null;
+  lastName: string | null;
   birthdate: string | null;
   email: string | null;
   phone: string | null;

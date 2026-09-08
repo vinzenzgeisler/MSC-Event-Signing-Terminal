@@ -28,14 +28,18 @@ function escapeHtml(value: string | null | undefined): string {
     .replace(/"/g, "&quot;");
 }
 
-function formatVehicle(vehicle: SigningCase["entries"][number]["vehicles"][number]): string {
+function personDisplayName(person: { displayName?: string; firstName: string | null; lastName: string | null }): string {
+  return person.displayName?.trim() || `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim() || "Teilnehmer";
+}
+
+function formatVehicle(vehicle: SigningCase["entries"][number]["vehicles"][number], hideOwnerName = false): string {
   return [
     vehicle.role === "backup" ? "Ersatzfahrzeug" : "Fahrzeug",
     vehicle.startNumber ? `#${vehicle.startNumber}` : null,
     vehicle.make,
     vehicle.model,
     vehicle.year ? String(vehicle.year) : null,
-    vehicle.ownerName ? `Eigentümer: ${vehicle.ownerName}` : null
+    !hideOwnerName && vehicle.ownerName ? `Eigentümer: ${vehicle.ownerName}` : null
   ]
     .filter(Boolean)
     .join(" · ");
@@ -78,8 +82,8 @@ export function buildEvidenceDocumentHtml(input: EvidenceBuildInput): string {
       : "Fahrer unterschreibt selbst";
   const entryRows = c.entries
     .map((entry) => {
-      const codriver = entry.codriver ? `${entry.codriver.firstName} ${entry.codriver.lastName}` : "Kein Beifahrer";
-      const vehicles = entry.vehicles.map((vehicle) => `<li>${escapeHtml(formatVehicle(vehicle))}</li>`).join("");
+      const codriver = entry.codriver ? personDisplayName(entry.codriver) : "Kein Beifahrer";
+      const vehicles = entry.vehicles.map((vehicle) => `<li>${escapeHtml(formatVehicle(vehicle, Boolean(c.driver.identityProtected)))}</li>`).join("");
       return `<tr>
         <td>${escapeHtml(entry.className)}</td>
         <td>${escapeHtml(entry.startNumber ?? "-")}</td>
@@ -113,7 +117,7 @@ export function buildEvidenceDocumentHtml(input: EvidenceBuildInput): string {
   <h1>Nachweis Haftverzicht vor Ort</h1>
   <div class="meta">
     <strong>Veranstaltung</strong><span>${escapeHtml(c.event.name)} (${escapeHtml(c.event.startsAt)} bis ${escapeHtml(c.event.endsAt)})</span>
-    <strong>Fahrer</strong><span>${escapeHtml(c.driver.firstName)} ${escapeHtml(c.driver.lastName)} · ${escapeHtml(c.driver.birthdate ?? "-")}</span>
+    <strong>Fahrer</strong><span>${escapeHtml(personDisplayName(c.driver))} · ${escapeHtml(c.driver.birthdate ?? "-")}</span>
     <strong>Unterzeichner</strong><span>${escapeHtml(signerLabel)}</span>
     <strong>Operator</strong><span>${escapeHtml(input.operator.displayName)} (${escapeHtml(input.operator.id)})</span>
     <strong>Angezeigt</strong><span>${escapeHtml(input.displayedAt)}</span>

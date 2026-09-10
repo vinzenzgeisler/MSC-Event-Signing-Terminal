@@ -155,6 +155,7 @@ export const signingApiAdapter = {
     waiverAcceptedAt: string;
     signedAt: string;
     signatureDataUrl: string;
+    guardianEmail?: string;
   }) {
     return requestJson<{ ok: true }>(`/terminal/sessions/${sessionId}/complete`, {
       method: "POST",

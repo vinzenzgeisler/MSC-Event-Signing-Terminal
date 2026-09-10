@@ -54,9 +54,21 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   min-width: 320px;
+  position: fixed;
+  inset: 0;
+  touch-action: manipulation;
 }
 
 button,
@@ -71,7 +83,8 @@ button {
 }
 
 main {
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   padding: 18px;
 }
 
@@ -169,6 +182,7 @@ p {
   background: var(--msc-panel);
   box-shadow: 0 22px 58px rgba(13, 37, 72, 0.13);
   overflow: hidden;
+  max-height: calc(100dvh - 108px);
 }
 
 .screen::before {
@@ -181,9 +195,10 @@ p {
 
 .onepage-signing {
   display: grid;
-  grid-template-rows: auto minmax(300px, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   gap: 0;
-  min-height: calc(100vh - 112px);
+  height: calc(100dvh - 108px);
+  min-height: 0;
 }
 
 .onepage-title {
@@ -266,13 +281,79 @@ p {
   padding: 20px 24px 20px 32px;
   line-height: 1.52;
   color: var(--msc-ink);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.contract-scroll {
+  max-height: 34vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  border: 1px solid var(--msc-border);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+}
+
+.contract-copy {
+  white-space: pre-wrap;
+}
+
+.translation-warning {
+  margin-bottom: 10px;
+  border: 1px solid #fdba74;
+  border-radius: 7px;
+  background: #fff7ed;
+  padding: 10px 12px;
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.german-contract {
+  margin-top: 12px;
+  border: 1px solid var(--msc-border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.german-contract summary {
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--msc-blue-dark);
+  font-weight: 800;
+  touch-action: manipulation;
 }
 
 .onepage-waiver {
   max-height: none;
-  min-height: 310px;
+  min-height: 0;
   font-size: clamp(15px, 1.18vw, 17px);
+}
+
+.guardian-email-field {
+  display: grid;
+  grid-template-columns: minmax(220px, auto) minmax(280px, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px 0 26px;
+  background: var(--msc-soft);
+  color: var(--msc-blue-dark);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.guardian-email-field input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--msc-border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 12px;
+  color: var(--msc-ink);
 }
 
 .onepage-waiver h3 {
@@ -281,6 +362,8 @@ p {
 
 .participant-form-screen {
   min-height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
 }
 
 .participant-form {
@@ -288,6 +371,10 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   padding: 22px 24px 28px 32px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .participant-form label {
@@ -372,6 +459,11 @@ p {
   border-color: var(--msc-success);
   background: #ecfdf5;
   box-shadow: inset 4px 0 0 var(--msc-success);
+}
+
+.read-confirmation:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .toggle-icon {
@@ -520,8 +612,9 @@ p {
   }
 
   .onepage-signing {
-    display: block;
-    min-height: auto;
+    display: grid;
+    height: calc(100dvh - 86px);
+    min-height: 0;
   }
 
   .participant-form,
@@ -542,8 +635,8 @@ p {
   }
 
   .onepage-waiver {
-    max-height: 46vh;
-    min-height: 260px;
+    max-height: none;
+    min-height: 0;
   }
 
   .onepage-signature-panel {
@@ -552,7 +645,13 @@ p {
   }
 
   .signature-pad canvas {
-    height: 230px;
+    height: 150px;
+  }
+
+  .guardian-email-field {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 9px 12px 0 20px;
   }
 
   .onepage-signature-panel .primary,

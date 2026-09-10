@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
           start_url: "/",
           scope: "/",
           display: "standalone",
+          display_override: ["fullscreen", "standalone"],
           background_color: "#eef2f7",
           theme_color: "#0d2548"
         },

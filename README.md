@@ -21,6 +21,16 @@ Die App ist bewusst eigenständig gehalten. Sie ist die Web-Oberfläche für das
 13. Backend erzeugt die persönliche Haftverzichtserklärung als PDF und einen Audit-Datensatz und speichert beides privat in S3.
 14. Das Admin-Modal und die Nennungsdetailseite zeigen den erfolgreichen Abschluss; das PDF ist nur über einen privaten Admin-Download abrufbar.
 
+## Gesicherter Tablet-Betrieb
+
+Das Terminal wird ausschließlich als installierte PWA betrieben. Die Anwendung sperrt Seiten- und Horizontal-Scrolling, Browser-History-Gesten, Pull-to-refresh, Mehrfinger-/Doppeltipp-Zoom sowie übliche Reload- und Zoom-Tastenkürzel. Vertikales Scrollen bleibt nur in Formular- und Vertragstextbereichen möglich. Ein unerwarteter Reload stellt die aktive Backend-Session und noch nicht abgeschlossene Form-/Lesedaten wieder her; eine Unterschrift muss danach aus Sicherheitsgründen erneut auf dem sichtbaren Pad gesetzt werden.
+
+- iPad/iOS: PWA vom Home-Bildschirm starten und anschließend den iOS-„Geführten Zugriff“ für diese App aktivieren.
+- Android: PWA installieren und die systemeigene App-/Bildschirmfixierung oder den verfügbaren Single-App-Kioskmodus aktivieren.
+- Während einer aktiven Erfassung oder Unterschrift wird kein Service-Worker-Update angewendet.
+
+Die iOS-Sperre im geführten Zugriff ist systemseitig stärker. Unter Android kann eine absolute Gerätesperre nur durch einen verwalteten Kioskmodus garantiert werden; die PWA fängt zusätzlich alle im Web-Kontext kontrollierbaren Navigationen und Gesten ab.
+
 ## Technische Struktur
 
 - `src/domain`: fachliche Typen und Mock-Daten in der Form späterer Backend-Antworten

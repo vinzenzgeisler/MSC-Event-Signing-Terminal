@@ -48,6 +48,17 @@ export type WaiverContractSnapshot = {
   textHash: string;
   title: string;
   fullText: string;
+  authoritativeLocale?: "de-DE";
+  authoritativeTitle?: string;
+  authoritativeFullText?: string;
+  authoritativeTextHash?: string;
+  translation?: {
+    locale: Locale;
+    title: string;
+    fullText: string;
+    textHash: string;
+    binding: false;
+  } | null;
   source: "backend_contract_context" | "mock_backend_context";
 };
 

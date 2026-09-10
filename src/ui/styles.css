@@ -337,10 +337,12 @@ p {
 }
 
 .onepage-waiver .contract-scroll {
-  max-height: 75vh;
+  height: 82vh;
+  max-height: 82vh;
 }
 
 .onepage-waiver .german-contract[open] .contract-scroll {
+  height: 60vh;
   max-height: 60vh;
 }
 

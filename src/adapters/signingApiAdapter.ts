@@ -17,23 +17,79 @@ function baseUrl() {
   return typeof env.VITE_API_BASE_URL === "string" ? env.VITE_API_BASE_URL.replace(/\/$/, "") : "";
 }
 
-async function requestJson<T>(path: string, options: { method?: string; body?: unknown; deviceToken?: string | null } = {}): Promise<T> {
-  const response = await fetch(`${baseUrl()}${path}`, {
-    method: options.method ?? "GET",
-    cache: "no-store",
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(options.deviceToken ? { "X-Signing-Device-Token": options.deviceToken } : {})
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = typeof payload?.message === "string" ? payload.message : `Request failed (${response.status})`;
-    const detail = typeof payload?.details?.error === "string" ? payload.details.error : "";
-    throw new Error(detail ? `${message}: ${detail}` : message);
+type RequestOptions = {
+  method?: string;
+  body?: unknown;
+  deviceToken?: string | null;
+  retryCount?: number;
+  timeoutMs?: number;
+};
+
+export class SigningApiError extends Error {
+  constructor(
+    message: string,
+    readonly kind: "network" | "timeout" | "http",
+    readonly status?: number,
+    readonly code?: string
+  ) {
+    super(message);
+    this.name = "SigningApiError";
   }
-  return payload as T;
+}
+
+export function isRetryableSigningApiError(error: unknown): error is SigningApiError {
+  return error instanceof SigningApiError && (error.kind === "network" || error.kind === "timeout" || (error.status ?? 0) >= 500);
+}
+
+const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const retryCount = options.retryCount ?? 0;
+  for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), options.timeoutMs ?? 8_000);
+    try {
+      const response = await fetch(`${baseUrl()}${path}`, {
+        method: options.method ?? "GET",
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...(options.deviceToken ? { "X-Signing-Device-Token": options.deviceToken } : {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = typeof payload?.message === "string" ? payload.message : `Serverfehler (${response.status})`;
+        const detail = typeof payload?.details?.error === "string" ? payload.details.error : "";
+        const code = typeof payload?.code === "string" ? payload.code : detail || undefined;
+        const error = new SigningApiError(detail ? `${message}: ${detail}` : message, "http", response.status, code);
+        if (response.status >= 500 && attempt < retryCount) {
+          await wait(400 * (attempt + 1));
+          continue;
+        }
+        throw error;
+      }
+      return payload as T;
+    } catch (error) {
+      if (error instanceof SigningApiError) throw error;
+      const timedOut = error instanceof DOMException && error.name === "AbortError";
+      if (attempt < retryCount) {
+        await wait(400 * (attempt + 1));
+        continue;
+      }
+      throw new SigningApiError(
+        timedOut
+          ? "Der Server antwortet zu langsam. Der Vorgang bleibt erhalten; bitte erneut versuchen."
+          : "Verbindung kurz unterbrochen. Automatischer Neuversuch läuft.",
+        timedOut ? "timeout" : "network"
+      );
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+  throw new SigningApiError("Verbindung zum Server fehlgeschlagen.", "network");
 }
 
 export type DeviceSigningSession = {
@@ -103,7 +159,12 @@ export const signingApiAdapter = {
     return requestJson<{ ok: true }>(`/terminal/sessions/${sessionId}/complete`, {
       method: "POST",
       deviceToken,
-      body: input
+      body: input,
+      // Completion is idempotent on the server. Retrying also resolves the
+      // important case where the server saved the signature but the response
+      // was lost on unstable event Wi-Fi.
+      retryCount: 2,
+      timeoutMs: 28_000
     });
   },
 
@@ -111,7 +172,9 @@ export const signingApiAdapter = {
     const response = await requestJson<{ ok: true; session: DeviceSigningSession }>(`/terminal/sessions/${sessionId}/draft`, {
       method: "PUT",
       deviceToken,
-      body: draft
+      body: draft,
+      retryCount: 1,
+      timeoutMs: 15_000
     });
     return response.session;
   },
@@ -126,7 +189,9 @@ export const signingApiAdapter = {
     return requestJson<{ ok: true }>(`/terminal/sessions/${sessionId}/complete`, {
       method: "POST",
       deviceToken,
-      body: input
+      body: input,
+      retryCount: 2,
+      timeoutMs: 28_000
     });
   }
 };

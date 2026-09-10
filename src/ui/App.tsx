@@ -7,9 +7,9 @@ import {
   PenLine,
   ShieldCheck
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { signingApiAdapter, type DeviceSigningSession, type ParticipantDraft } from "../adapters/signingApiAdapter";
+import { isRetryableSigningApiError, signingApiAdapter, type DeviceSigningSession, type ParticipantDraft } from "../adapters/signingApiAdapter";
 import type { PersonSnapshot, SigningCase } from "../domain/types";
 import { SignaturePad } from "./SignaturePad";
 
@@ -82,12 +82,15 @@ export function App() {
   const [step, setStep] = useState<Step>(() => (signingApiAdapter.getStoredDeviceToken() ? "waiting" : "pair"));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [connectionMessage, setConnectionMessage] = useState("");
   const [displayedAt, setDisplayedAt] = useState<string | null>(null);
   const [waiverAcceptedAt, setWaiverAcceptedAt] = useState<string | null>(null);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [privacyAcceptedAt, setPrivacyAcceptedAt] = useState<string | null>(null);
   const [participantDraft, setParticipantDraft] = useState<ParticipantDraft>(emptyParticipantDraft);
   const [nowTick, setNowTick] = useState(Date.now());
+  const pollInFlightRef = useRef(false);
+  const completionInFlightRef = useRef(false);
   const {
     needRefresh: [pwaUpdateAvailable],
     updateServiceWorker
@@ -106,6 +109,18 @@ export function App() {
       void updateServiceWorker(true);
     }
   }, [pwaUpdateAvailable, step, updateServiceWorker]);
+
+  useEffect(() => {
+    const offline = () => setConnectionMessage("Keine Internetverbindung. Der aktuelle Bildschirm bleibt erhalten; das Terminal verbindet sich automatisch neu.");
+    const online = () => setConnectionMessage("");
+    window.addEventListener("offline", offline);
+    window.addEventListener("online", online);
+    if (!navigator.onLine) offline();
+    return () => {
+      window.removeEventListener("offline", offline);
+      window.removeEventListener("online", online);
+    };
+  }, []);
 
   async function pairDevice() {
     const normalized = pairingCode.replace(/\D/g, "").slice(0, 6);
@@ -128,11 +143,13 @@ export function App() {
   }
 
   async function pollSession() {
-    if (!deviceToken || step !== "waiting") {
+    if (!deviceToken || step !== "waiting" || pollInFlightRef.current) {
       return;
     }
+    pollInFlightRef.current = true;
     try {
       const current = await signingApiAdapter.getCurrentSession(deviceToken);
+      setConnectionMessage("");
       if (current) {
         setSession(current);
         setDisplayedAt(new Date().toISOString());
@@ -155,7 +172,11 @@ export function App() {
         setMessage("Dieses Terminal ist nicht mehr gekoppelt. Bitte im Nennungstool neu koppeln.");
         return;
       }
-      setMessage(error instanceof Error ? error.message : "Session konnte nicht geladen werden.");
+      setConnectionMessage(isRetryableSigningApiError(error)
+        ? error.message
+        : "Der Server konnte nicht abgefragt werden. Automatischer Neuversuch läuft.");
+    } finally {
+      pollInFlightRef.current = false;
     }
   }
 
@@ -193,8 +214,11 @@ export function App() {
       return;
     }
     const pollActiveSession = async () => {
+      if (pollInFlightRef.current || completionInFlightRef.current) return;
+      pollInFlightRef.current = true;
       try {
         const current = await signingApiAdapter.getCurrentSession(deviceToken);
+        setConnectionMessage("");
         if (!current || current.id !== session.id) {
           setSession(null);
           setDisplayedAt(null);
@@ -223,7 +247,11 @@ export function App() {
           setMessage("Dieses Terminal ist nicht mehr gekoppelt. Bitte im Nennungstool neu koppeln.");
           return;
         }
-        setMessage(error instanceof Error ? error.message : "Session konnte nicht aktualisiert werden.");
+        setConnectionMessage(isRetryableSigningApiError(error)
+          ? error.message
+          : "Der Server konnte nicht abgefragt werden. Der aktuelle Vorgang bleibt auf dem Tablet geöffnet.");
+      } finally {
+        pollInFlightRef.current = false;
       }
     };
     const interval = window.setInterval(() => void pollActiveSession(), 2500);
@@ -246,6 +274,7 @@ export function App() {
       setMessage("Bitte zuerst im Unterschriftenfeld unterschreiben.");
       return;
     }
+    completionInFlightRef.current = true;
     setBusy(true);
     try {
       const input = {
@@ -277,8 +306,11 @@ export function App() {
         setMessage("Dieses Terminal ist nicht mehr gekoppelt. Bitte im Nennungstool neu koppeln.");
         return;
       }
-      setMessage(error instanceof Error ? error.message : "Abschluss fehlgeschlagen.");
+      setMessage(isRetryableSigningApiError(error)
+        ? "Die Verbindung war beim Speichern instabil. Die Eingaben bleiben erhalten – bitte „Unterschrift bestätigen“ erneut drücken. Der Server verarbeitet doppelte Versuche sicher."
+        : error instanceof Error ? error.message : "Abschluss fehlgeschlagen.");
     } finally {
+      completionInFlightRef.current = false;
       setBusy(false);
     }
   }
@@ -326,7 +358,8 @@ export function App() {
         </div>
       </header>
 
-      {message ? <div className="screen warning-box">{message}</div> : null}
+      {connectionMessage ? <div className="screen warning-box" role="status">{connectionMessage}</div> : null}
+      {message ? <div className="screen warning-box" role="alert">{message}</div> : null}
 
       {step === "pair" ? (
         <section className="screen pair-screen">

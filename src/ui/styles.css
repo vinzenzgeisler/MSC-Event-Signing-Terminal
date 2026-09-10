@@ -277,7 +277,6 @@ p {
   color: var(--msc-ink);
   overflow-y: auto;
   overflow-x: hidden;
-  overscroll-behavior: contain;
   touch-action: pan-y;
 }
 
@@ -285,7 +284,6 @@ p {
   max-height: 34vh;
   overflow-y: auto;
   overflow-x: hidden;
-  overscroll-behavior: contain;
   touch-action: pan-y;
   border: 1px solid var(--msc-border);
   border-radius: 8px;

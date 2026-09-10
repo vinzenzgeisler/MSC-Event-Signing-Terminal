@@ -332,16 +332,16 @@ p {
 .onepage-waiver {
   max-height: none;
   min-height: 0;
-  font-size: clamp(19px, 2vw, 25px);
-  line-height: 1.5;
+  font-size: clamp(17px, 1.6vw, 21px);
+  line-height: 1.45;
 }
 
 .onepage-waiver .contract-scroll {
-  max-height: 58vh;
+  max-height: 75vh;
 }
 
 .onepage-waiver .german-contract[open] .contract-scroll {
-  max-height: 58vh;
+  max-height: 60vh;
 }
 
 .guardian-email-field {

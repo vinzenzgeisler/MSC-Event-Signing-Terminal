@@ -199,6 +199,7 @@ p {
   gap: 0;
   height: calc(100dvh - 108px);
   min-height: 0;
+  overflow-y: auto;
 }
 
 .onepage-title {
@@ -332,6 +333,30 @@ p {
   max-height: none;
   min-height: 0;
   font-size: clamp(15px, 1.18vw, 17px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.onepage-waiver .contract-scroll {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 120px;
+}
+
+.onepage-waiver .german-contract {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.onepage-waiver .german-contract[open] {
+  flex: 1 1 auto;
+}
+
+.onepage-waiver .german-contract[open] .contract-scroll {
+  flex: 1 1 auto;
 }
 
 .guardian-email-field {

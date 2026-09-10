@@ -117,7 +117,6 @@ export function SignaturePad({ onChange }: SignaturePadProps) {
 
   return (
     <div className="signature-pad">
-      <div className="signature-input-mode">Stiftmodus · Handballenschutz aktiv</div>
       <canvas
         ref={canvasRef}
         aria-label="Unterschriftenfeld"

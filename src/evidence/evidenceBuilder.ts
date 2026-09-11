@@ -34,6 +34,31 @@ function stripLeadingContractTitle(fullText: string, title: string): string {
   return fullText.startsWith(title) ? fullText.slice(title.length).replace(/^\n+/, "") : fullText;
 }
 
+// Renders the structured contract (intro/sections, each with paragraphs and/or bullets) as
+// proper headings/paragraphs/lists instead of one flattened, whitespace-preserved block.
+function renderContractHtml(
+  fullText: string,
+  title: string,
+  intro?: string[],
+  sections?: Array<{ title: string; paragraphs?: string[]; bullets?: string[] }>
+): string {
+  if (!sections) {
+    return `<div class="waiver">${escapeHtml(stripLeadingContractTitle(fullText, title))}</div>`;
+  }
+  const introHtml = (intro ?? []).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("");
+  const sectionsHtml = sections
+    .map((section) => {
+      const heading = section.title ? `<h4>${escapeHtml(section.title)}</h4>` : "";
+      const paragraphs = (section.paragraphs ?? []).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("");
+      const bullets = section.bullets && section.bullets.length > 0
+        ? `<ul>${section.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul>`
+        : "";
+      return `<div class="waiver-section">${heading}${paragraphs}${bullets}</div>`;
+    })
+    .join("");
+  return `<div class="waiver waiver-structured">${introHtml}${sectionsHtml}</div>`;
+}
+
 function personDisplayName(person: { displayName?: string; firstName: string | null; lastName: string | null }): string {
   return person.displayName?.trim() || `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim() || "Teilnehmer";
 }
@@ -115,6 +140,13 @@ export function buildEvidenceDocumentHtml(input: EvidenceBuildInput): string {
     th { background: #f3f4f6; }
     .meta { display: grid; grid-template-columns: 170px 1fr; gap: 6px 12px; }
     .waiver { white-space: pre-wrap; border: 1px solid #d1d5db; padding: 16px; }
+    .waiver-structured { white-space: normal; }
+    .waiver-structured p { margin: 0 0 10px; }
+    .waiver-structured .waiver-section { margin-top: 14px; }
+    .waiver-structured .waiver-section:first-child { margin-top: 0; }
+    .waiver-structured h4 { margin: 0 0 8px; font-size: 15px; }
+    .waiver-structured ul { padding-left: 20px; margin: 0 0 10px; }
+    .waiver-structured li { margin-bottom: 4px; }
     .signature { width: 360px; height: 160px; border: 1px solid #111827; object-fit: contain; }
     ul { margin: 0; padding-left: 18px; }
   </style>
@@ -152,7 +184,7 @@ export function buildEvidenceDocumentHtml(input: EvidenceBuildInput): string {
     <strong>Version</strong><span>${escapeHtml(c.contract.version)}</span>
     <strong>Text-Hash</strong><span>${escapeHtml(c.contract.textHash)}</span>
   </div>
-  <div class="waiver">${escapeHtml(stripLeadingContractTitle(c.contract.fullText, c.contract.title))}</div>
+  ${renderContractHtml(c.contract.fullText, c.contract.title, c.contract.authoritativeIntro, c.contract.authoritativeSections)}
 
   <h2>Unterschrift</h2>
   <img class="signature" src="${escapeHtml(input.signatureDataUrl)}" alt="Unterschrift" />

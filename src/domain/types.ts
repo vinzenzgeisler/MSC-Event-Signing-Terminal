@@ -41,6 +41,12 @@ export type SigningEntry = {
   vehicles: SigningVehicle[];
 };
 
+export type WaiverContractSection = {
+  title: string;
+  paragraphs?: string[];
+  bullets?: string[];
+};
+
 export type WaiverContractSnapshot = {
   documentId: "haftverzicht";
   locale: Locale;
@@ -52,11 +58,17 @@ export type WaiverContractSnapshot = {
   authoritativeTitle?: string;
   authoritativeFullText?: string;
   authoritativeTextHash?: string;
+  // Structured form of the same text, for rendering with proper headings/paragraphs/bullets
+  // instead of one flattened block. Optional for backward compatibility with mocked contexts.
+  authoritativeIntro?: string[];
+  authoritativeSections?: WaiverContractSection[];
   translation?: {
     locale: Locale;
     title: string;
     fullText: string;
     textHash: string;
+    intro?: string[];
+    sections?: WaiverContractSection[];
     binding: false;
   } | null;
   source: "backend_contract_context" | "mock_backend_context";

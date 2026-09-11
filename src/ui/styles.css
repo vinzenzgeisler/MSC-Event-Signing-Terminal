@@ -275,16 +275,12 @@ p {
   padding: 20px 24px 20px 32px;
   line-height: 1.52;
   color: var(--msc-ink);
-  overflow-y: auto;
-  overflow-x: hidden;
-  touch-action: pan-y;
 }
 
+/* The waiver text scrolls with the page rather than in its own box (see
+   ContractScroll in App.tsx) so a single continuous swipe reads the whole
+   text without getting stuck at a nested scroll boundary. */
 .contract-scroll {
-  max-height: 34vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  touch-action: pan-y;
   border: 1px solid var(--msc-border);
   border-radius: 8px;
   padding: 14px;
@@ -293,6 +289,39 @@ p {
 
 .contract-copy {
   white-space: pre-wrap;
+}
+
+.contract-copy-structured {
+  white-space: normal;
+}
+
+.contract-copy-structured p {
+  margin: 0 0 10px;
+}
+
+.contract-copy-structured .contract-section {
+  margin-top: 16px;
+}
+
+.contract-copy-structured .contract-section:first-child {
+  margin-top: 0;
+}
+
+.contract-copy-structured h4 {
+  margin: 0 0 8px;
+  color: var(--msc-blue-dark);
+  font-size: 1.02em;
+  font-weight: 800;
+}
+
+.contract-copy-structured ul {
+  margin: 0 0 10px;
+  padding-left: 1.3em;
+}
+
+.contract-copy-structured li {
+  margin-bottom: 6px;
+  line-height: 1.5;
 }
 
 .translation-warning {
@@ -325,16 +354,6 @@ p {
   min-height: 0;
   font-size: clamp(17px, 1.6vw, 21px);
   line-height: 1.45;
-}
-
-.onepage-waiver .contract-scroll {
-  height: 82vh;
-  max-height: 82vh;
-}
-
-.onepage-waiver .german-contract[open] .contract-scroll {
-  height: 60vh;
-  max-height: 60vh;
 }
 
 .guardian-email-field {

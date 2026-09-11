@@ -138,20 +138,54 @@ function stripLeadingTitle(text: string, title: string): string {
   return text.slice(title.length).replace(/^\n+/, "");
 }
 
-function ContractScroll({ title, text, onRead }: { title: string; text: string; onRead: () => void }) {
-  const ref = useRef<HTMLDivElement | null>(null);
+type ContractScrollSection = { title: string; paragraphs?: string[]; bullets?: string[] };
+
+function ContractScroll({ title, text, intro, sections, onRead }: {
+  title: string;
+  text: string;
+  intro?: string[];
+  sections?: ContractScrollSection[];
+  onRead: () => void;
+}) {
+  const endRef = useRef<HTMLDivElement | null>(null);
   const body = stripLeadingTitle(text, title);
-  const checkRead = () => {
-    const element = ref.current;
-    if (element && element.scrollTop + element.clientHeight >= element.scrollHeight - 8) onRead();
-  };
+  // The waiver text used to sit in its own overflow:auto box nested inside the
+  // page scroll. On touch devices a drag gesture that starts inside a nested
+  // scroll box doesn't hand off to the outer page when it hits the bottom, so
+  // reading to the end left the screen feeling stuck until you lifted your
+  // finger and swiped again outside the box. Letting the text flow in the
+  // page (single scroll surface) and watching an end-of-text marker instead
+  // of a scrollTop threshold removes that dead zone entirely.
   useEffect(() => {
-    const frame = window.requestAnimationFrame(checkRead);
-    return () => window.cancelAnimationFrame(frame);
-  }, [body]);
-  return <div ref={ref} className="contract-scroll" onScroll={checkRead}>
+    const element = endRef.current;
+    if (!element) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) onRead();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [body, sections]);
+  return <div className="contract-scroll">
     <h3>{title}</h3>
-    <div className="contract-copy">{body}</div>
+    {sections ? (
+      <div className="contract-copy contract-copy-structured">
+        {(intro ?? []).map((paragraph, index) => <p key={`intro-${index}`}>{paragraph}</p>)}
+        {sections.map((section, sectionIndex) => (
+          <div className="contract-section" key={`section-${sectionIndex}`}>
+            {section.title ? <h4>{section.title}</h4> : null}
+            {(section.paragraphs ?? []).map((paragraph, index) => <p key={`p-${index}`}>{paragraph}</p>)}
+            {section.bullets && section.bullets.length > 0 ? (
+              <ul>
+                {section.bullets.map((bullet, index) => <li key={`b-${index}`}>{bullet}</li>)}
+              </ul>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="contract-copy">{body}</div>
+    )}
+    <div ref={endRef} aria-hidden="true" />
   </div>;
 }
 
@@ -641,12 +675,20 @@ export function App() {
             {translation ? (
               <>
                 <div className="translation-warning">Unverbindliche Übersetzung als Verständnishilfe. Rechtsverbindlich ist ausschließlich die deutsche Fassung.</div>
-                <ContractScroll title={translation.title} text={translation.fullText} onRead={() => setTranslationRead(true)} />
+                <ContractScroll
+                  title={translation.title}
+                  text={translation.fullText}
+                  intro={translation.intro}
+                  sections={translation.sections}
+                  onRead={() => setTranslationRead(true)}
+                />
                 <details className="german-contract" open={germanExpanded} onToggle={(event) => setGermanExpanded(event.currentTarget.open)}>
                   <summary>Verbindliche deutsche Fassung anzeigen</summary>
                   <ContractScroll
                     title={signingCase.contract.authoritativeTitle ?? signingCase.contract.title}
                     text={signingCase.contract.authoritativeFullText ?? signingCase.contract.fullText}
+                    intro={signingCase.contract.authoritativeIntro}
+                    sections={signingCase.contract.authoritativeSections}
                     onRead={() => setAuthoritativeRead(true)}
                   />
                 </details>
@@ -655,6 +697,8 @@ export function App() {
               <ContractScroll
                 title={signingCase.contract.authoritativeTitle ?? signingCase.contract.title}
                 text={signingCase.contract.authoritativeFullText ?? signingCase.contract.fullText}
+                intro={signingCase.contract.authoritativeIntro}
+                sections={signingCase.contract.authoritativeSections}
                 onRead={() => setAuthoritativeRead(true)}
               />
             )}

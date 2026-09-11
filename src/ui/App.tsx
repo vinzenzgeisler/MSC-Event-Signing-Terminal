@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { SigningApiError, signingApiAdapter, type DeviceSigningSession, type ParticipantDraft } from "../adapters/signingApiAdapter";
 import { ageAtEvent } from "../domain/age";
+import { signingCaseFromPayload } from "../domain/signingCase";
 import type { PersonSnapshot, SigningCase } from "../domain/types";
 import { SignaturePad } from "./SignaturePad";
 
@@ -62,10 +63,7 @@ function participantDisplayName(person: ParticipantSessionProfile) {
 }
 
 function asSigningCase(session: DeviceSigningSession | null): SigningCase | null {
-  if (!session || !session.sessionPayload || typeof session.sessionPayload !== "object") {
-    return null;
-  }
-  return session.sessionPayload as SigningCase;
+  return signingCaseFromPayload(session?.sessionPayload);
 }
 
 function checkedLabel(value: string | null) {

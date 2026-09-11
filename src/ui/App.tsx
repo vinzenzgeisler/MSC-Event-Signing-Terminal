@@ -130,8 +130,17 @@ function loadSavedDraft(sessionId: string) {
   }
 }
 
+// The contract text's first line repeats its own title (see flattenWaiverDocument on the
+// backend), which would otherwise show the same heading twice: once large as <h3>, once
+// again as the first line of the scrollable body text.
+function stripLeadingTitle(text: string, title: string): string {
+  if (!text.startsWith(title)) return text;
+  return text.slice(title.length).replace(/^\n+/, "");
+}
+
 function ContractScroll({ title, text, onRead }: { title: string; text: string; onRead: () => void }) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const body = stripLeadingTitle(text, title);
   const checkRead = () => {
     const element = ref.current;
     if (element && element.scrollTop + element.clientHeight >= element.scrollHeight - 8) onRead();
@@ -139,10 +148,10 @@ function ContractScroll({ title, text, onRead }: { title: string; text: string; 
   useEffect(() => {
     const frame = window.requestAnimationFrame(checkRead);
     return () => window.cancelAnimationFrame(frame);
-  }, [text]);
+  }, [body]);
   return <div ref={ref} className="contract-scroll" onScroll={checkRead}>
     <h3>{title}</h3>
-    <div className="contract-copy">{text}</div>
+    <div className="contract-copy">{body}</div>
   </div>;
 }
 

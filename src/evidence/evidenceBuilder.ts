@@ -28,6 +28,12 @@ function escapeHtml(value: string | null | undefined): string {
     .replace(/"/g, "&quot;");
 }
 
+// The contract's full text starts with its own title line (see flattenWaiverDocument on the
+// backend); strip it so it isn't shown twice next to the "Haftverzicht" section heading.
+function stripLeadingContractTitle(fullText: string, title: string): string {
+  return fullText.startsWith(title) ? fullText.slice(title.length).replace(/^\n+/, "") : fullText;
+}
+
 function personDisplayName(person: { displayName?: string; firstName: string | null; lastName: string | null }): string {
   return person.displayName?.trim() || `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim() || "Teilnehmer";
 }
@@ -146,7 +152,7 @@ export function buildEvidenceDocumentHtml(input: EvidenceBuildInput): string {
     <strong>Version</strong><span>${escapeHtml(c.contract.version)}</span>
     <strong>Text-Hash</strong><span>${escapeHtml(c.contract.textHash)}</span>
   </div>
-  <div class="waiver">${escapeHtml(c.contract.fullText)}</div>
+  <div class="waiver">${escapeHtml(stripLeadingContractTitle(c.contract.fullText, c.contract.title))}</div>
 
   <h2>Unterschrift</h2>
   <img class="signature" src="${escapeHtml(input.signatureDataUrl)}" alt="Unterschrift" />

@@ -79,6 +79,7 @@ const terminalErrorMessages: Record<string, string> = {
   PARTICIPANT_DRAFT_REQUIRED: "Die Teilnehmerdaten fehlen. Bitte das Anmeldungsteam informieren.",
   BIRTHDATE_OUT_OF_RANGE: "Bitte ein gültiges Geburtsdatum eingeben.",
   GUARDIAN_REQUIRED: "Bei Minderjährigen bitte alle Angaben zur sorgeberechtigten Person ausfüllen.",
+  GUARDIAN_CONTACT_REQUIRED: "Bei Minderjährigen bitte E-Mail oder Telefon der sorgeberechtigten Person angeben.",
   CODRIVER_EMAIL_MUST_DIFFER: "Die E-Mail-Adresse des Beifahrers muss sich von der des Fahrers unterscheiden.",
   CODRIVER_NAME_MUST_DIFFER: "Fahrer und Beifahrer dürfen nicht dieselbe Person sein.",
   EMAIL_ALREADY_USED_BY_DIFFERENT_PERSON: "Diese E-Mail-Adresse ist bereits einer anderen Person zugeordnet. Bitte das Anmeldungsteam informieren.",
@@ -218,6 +219,7 @@ export function App() {
     ? session.signerPayload as { guardianName?: string | null }
     : null;
   const isParticipantWorkflow = session?.workflowType === "regular_codriver_registration" || session?.workflowType === "charity_codriver_registration";
+  const isCharityWorkflow = session?.workflowType === "charity_codriver_registration";
   const participantPayload = session?.sessionPayload && typeof session.sessionPayload === "object" ? session.sessionPayload as Record<string, unknown> : null;
   const participantProfile = (participantPayload?.participant ?? session?.draftPayload ?? participantDraft) as ParticipantSessionProfile;
   const formT = formTexts[participantDraft.locale];
@@ -524,14 +526,33 @@ export function App() {
       setMessage("Bitte gültige Telefonnummern mit 6 bis 15 Ziffern eingeben.");
       return;
     }
-    if (participantIsMinor && (!participantDraft.guardianFullName?.trim() || !participantDraft.guardianEmail?.trim() || !participantDraft.guardianPhone?.trim() || !participantDraft.guardianRelationship?.trim())) {
+    if (participantIsMinor && isCharityWorkflow && (!participantDraft.guardianFullName?.trim() || !participantDraft.guardianRelationship?.trim() || (!participantDraft.guardianEmail?.trim() && !participantDraft.guardianPhone?.trim()))) {
+      setMessage("Bei Minderjährigen bitte Name, Verhältnis und E-Mail oder Telefon der sorgeberechtigten Person angeben.");
+      return;
+    }
+    if (participantIsMinor && !isCharityWorkflow && (!participantDraft.guardianFullName?.trim() || !participantDraft.guardianEmail?.trim() || !participantDraft.guardianPhone?.trim() || !participantDraft.guardianRelationship?.trim())) {
       setMessage("Bei Minderjährigen bitte alle Angaben zur sorgeberechtigten Person ausfüllen.");
       return;
     }
     setBusy(true);
     setMessage("");
     try {
-      const updated = await signingApiAdapter.submitParticipantDraft(session.id, deviceToken, participantDraft);
+      const draft = isCharityWorkflow ? {
+        locale: participantDraft.locale,
+        firstName: participantDraft.firstName,
+        lastName: participantDraft.lastName,
+        birthdate: participantDraft.birthdate,
+        country: participantDraft.country,
+        street: participantDraft.street,
+        zip: participantDraft.zip,
+        city: participantDraft.city,
+        email: participantIsMinor ? null : participantDraft.email?.trim() || null,
+        guardianFullName: participantIsMinor ? participantDraft.guardianFullName : null,
+        guardianRelationship: participantIsMinor ? participantDraft.guardianRelationship : null,
+        guardianEmail: participantIsMinor ? participantDraft.guardianEmail?.trim() || null : null,
+        guardianPhone: participantIsMinor ? participantDraft.guardianPhone?.trim() || null : null
+      } : participantDraft;
+      const updated = await signingApiAdapter.submitParticipantDraft(session.id, deviceToken, draft);
       setSession(updated);
     } catch (error) {
       if (isClosedSessionError(error)) {
@@ -620,7 +641,7 @@ export function App() {
       {step === "signing" && isParticipantWorkflow && session?.workflowStage === "collecting_data" ? (
         <section className="screen participant-form-screen">
           <div className="screen-title onepage-title">
-            <div><div className="eyebrow">MSC Event</div><h2>{formT.title}</h2><p>{formT.intro}</p></div>
+            <div><div className="eyebrow">MSC Event</div><h2>{isCharityWorkflow ? `Charity · ${formT.title}` : formT.title}</h2><p>{formT.intro}</p></div>
           </div>
           <form className="participant-form" onSubmit={(event) => { event.preventDefault(); void submitParticipantData(); }}>
             <label className="full-field">Sprache / Language / Jazyk / Język
@@ -629,19 +650,28 @@ export function App() {
               </select>
             </label>
             {([
-              ["firstName", formT.firstName, "text"], ["lastName", formT.lastName, "text"], ["birthdate", formT.birthdate, "date"], ["country", formT.country, "text"],
-              ["street", formT.street, "text"], ["zip", formT.zip, "text"], ["city", formT.city, "text"], ["email", formT.email, "email"], ["phone", formT.phone, "tel"],
-              ["emergencyContactFirstName", formT.emergencyFirst, "text"], ["emergencyContactLastName", formT.emergencyLast, "text"], ["emergencyContactPhone", formT.emergencyPhone, "tel"]
-            ] as Array<[keyof ParticipantDraft, string, string]>).map(([key, label, type]) => (
-              <label key={key}>{label}<input required type={type} value={String(participantDraft[key] ?? "")} onChange={(event) => updateParticipantField(key, event.target.value)} /></label>
+              ["firstName", formT.firstName, "text", "given-name"], ["lastName", formT.lastName, "text", "family-name"], ["birthdate", formT.birthdate, "date", "bday"], ["country", formT.country, "text", "country-name"],
+              ["street", formT.street, "text", "street-address"], ["zip", formT.zip, "text", "postal-code"], ["city", formT.city, "text", "address-level2"]
+            ] as Array<[keyof ParticipantDraft, string, string, string]>).map(([key, label, type, autoComplete]) => (
+              <label key={key}>{label}<input required type={type} autoComplete={autoComplete} value={String(participantDraft[key] ?? "")} onChange={(event) => updateParticipantField(key, event.target.value)} /></label>
             ))}
-            <label className="full-field">{formT.history}<textarea value={participantDraft.motorsportHistory ?? ""} onChange={(event) => setParticipantDraft((current) => ({ ...current, motorsportHistory: event.target.value }))} /></label>
+            {(!participantIsMinor || !isCharityWorkflow) ? (
+              <label>{formT.email}{isCharityWorkflow ? " (optional, für PDF)" : ""}<input required={!isCharityWorkflow} type="email" inputMode="email" autoComplete="email" value={String(participantDraft.email ?? "")} onChange={(event) => updateParticipantField("email", event.target.value)} /></label>
+            ) : null}
+            {!isCharityWorkflow ? <>
+              {([
+                ["phone", formT.phone, "tel"], ["emergencyContactFirstName", formT.emergencyFirst, "text"], ["emergencyContactLastName", formT.emergencyLast, "text"], ["emergencyContactPhone", formT.emergencyPhone, "tel"]
+              ] as Array<[keyof ParticipantDraft, string, string]>).map(([key, label, type]) => (
+                <label key={key}>{label}<input required type={type} value={String(participantDraft[key] ?? "")} onChange={(event) => updateParticipantField(key, event.target.value)} /></label>
+              ))}
+              <label className="full-field">{formT.history}<textarea value={participantDraft.motorsportHistory ?? ""} onChange={(event) => setParticipantDraft((current) => ({ ...current, motorsportHistory: event.target.value }))} /></label>
+            </> : null}
             {participantIsMinor ? <fieldset className="full-field guardian-fields">
               <legend>{formT.guardian}</legend>
               <label>{formT.guardianName}<input required value={participantDraft.guardianFullName ?? ""} onChange={(event) => setParticipantDraft((current) => ({ ...current, guardianFullName: event.target.value || null }))} /></label>
-              <label>E-Mail<input required type="email" value={participantDraft.guardianEmail ?? ""} onChange={(event) => setParticipantDraft((current) => ({ ...current, guardianEmail: event.target.value || null }))} /></label>
-              <label>Telefon<input required type="tel" value={participantDraft.guardianPhone ?? ""} onChange={(event) => setParticipantDraft((current) => ({ ...current, guardianPhone: event.target.value || null }))} /></label>
               <label>{formT.guardianRelation}<input required value={participantDraft.guardianRelationship ?? ""} onChange={(event) => setParticipantDraft((current) => ({ ...current, guardianRelationship: event.target.value || null }))} /></label>
+              <label>E-Mail{isCharityWorkflow ? " (E-Mail oder Telefon)" : ""}<input required={!isCharityWorkflow} type="email" inputMode="email" autoComplete="email" value={participantDraft.guardianEmail ?? ""} onChange={(event) => setParticipantDraft((current) => ({ ...current, guardianEmail: event.target.value || null }))} /></label>
+              <label>Telefon{isCharityWorkflow ? " (E-Mail oder Telefon)" : ""}<input required={!isCharityWorkflow} type="tel" inputMode="tel" autoComplete="tel" value={participantDraft.guardianPhone ?? ""} onChange={(event) => setParticipantDraft((current) => ({ ...current, guardianPhone: event.target.value || null }))} /></label>
             </fieldset> : null}
             <button className="primary full-field" type="submit" disabled={busy}>{busy ? <Loader2 size={20} className="spin" /> : <ClipboardCheck size={20} />}{formT.submit}</button>
           </form>
@@ -668,6 +698,19 @@ export function App() {
               {signingCase.signer?.role !== "codriver" && codriverSummary() ? <p>Beifahrer: {codriverSummary()}</p> : null}
             </div>
           </div>
+
+          {isCharityWorkflow ? (
+            <section className="participant-review" aria-label="Erfasste Charity-Daten">
+              <h3>Bitte Daten prüfen</h3>
+              <p><strong>Name:</strong> {participantDraft.firstName} {participantDraft.lastName}</p>
+              <p><strong>Geburtsdatum:</strong> {participantDraft.birthdate}</p>
+              <p><strong>Adresse:</strong> {participantDraft.street}, {participantDraft.zip} {participantDraft.city}, {participantDraft.country}</p>
+              {participantIsMinor ? <>
+                <p><strong>Gesetzliche Vertretung:</strong> {participantDraft.guardianFullName} ({participantDraft.guardianRelationship})</p>
+                <p><strong>Kontakt:</strong> {participantDraft.guardianEmail || participantDraft.guardianPhone || "-"}</p>
+              </> : participantDraft.email ? <p><strong>E-Mail:</strong> {participantDraft.email}</p> : null}
+            </section>
+          ) : null}
 
           <article className="waiver-text onepage-waiver">
             {translation ? (

@@ -113,11 +113,11 @@ export type ParticipantDraft = {
   street: string;
   zip: string;
   city: string;
-  email: string;
-  phone: string;
-  emergencyContactFirstName: string;
-  emergencyContactLastName: string;
-  emergencyContactPhone: string;
+  email: string | null;
+  phone?: string;
+  emergencyContactFirstName?: string;
+  emergencyContactLastName?: string;
+  emergencyContactPhone?: string;
   motorsportHistory?: string | null;
   guardianFullName?: string | null;
   guardianEmail?: string | null;

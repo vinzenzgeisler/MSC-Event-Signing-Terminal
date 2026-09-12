@@ -356,6 +356,22 @@ p {
   line-height: 1.45;
 }
 
+.participant-review {
+  margin: 0 0 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.85rem;
+  background: #f8fafc;
+}
+
+.participant-review h3 {
+  margin: 0 0 0.55rem;
+}
+
+.participant-review p {
+  margin: 0.25rem 0;
+}
+
 .guardian-email-field {
   display: grid;
   grid-template-columns: minmax(220px, auto) minmax(280px, 1fr);

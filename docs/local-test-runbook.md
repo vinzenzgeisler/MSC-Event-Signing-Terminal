@@ -16,7 +16,7 @@ Die Dev-API-URL bleibt stabil, weil der Scheduler nur RDS stoppt und API Gateway
 ## Lokale WebApps starten
 
 ```powershell
-cd C:\Users\VinzenzGeisler\source\msc-event-signing-terminal
+cd <path-to-source>\msc-event-signing-terminal
 .\scripts\start-local-test.ps1 -ApiBaseUrl "https://<dev-api-base-url>" -CognitoDomain "https://<cognito-hosted-ui-domain>" -CognitoClientId "<dev-cognito-client-id>"
 ```
 

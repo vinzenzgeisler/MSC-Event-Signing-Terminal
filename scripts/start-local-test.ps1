@@ -1,6 +1,6 @@
 param(
-  [string]$FrontendPath = "C:\Users\VinzenzGeisler\source\MSC-Event-Frontend",
-  [string]$SigningPath = "C:\Users\VinzenzGeisler\source\msc-event-signing-terminal",
+  [string]$FrontendPath = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "MSC-Event-Frontend"),
+  [string]$SigningPath = (Split-Path $PSScriptRoot -Parent),
   [string]$FrontendPort = "5173",
   [string]$SigningPort = "5178",
   [string]$ApiBaseUrl = "",
